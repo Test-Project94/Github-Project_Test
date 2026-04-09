@@ -2,57 +2,44 @@ const express = require('express');
 const app = express();
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// ❌ Hardcoded secret (Vulnerability)
-const SECRET_KEY = "SUPER_SECRET_KEY_123";
+// ❌ Hardcoded config (real-world mistake)
+const CONFIG = {
+    DB_PASSWORD: "root123",
+    API_KEY: "sk-live-123456",
+    JWT_SECRET: "mysecret"
+};
 
-// ❌ Fake database (plain text passwords)
+// ❌ Fake DB (simulating SQL-like queries)
 let users = [
-    { username: "admin", password: "admin123" }
+    { id: 1, username: "admin", password: "admin123", role: "admin" },
+    { id: 2, username: "user", password: "user123", role: "user" }
 ];
 
-// ❌ Serve HTML directly (frontend inside backend)
+// ❌ Serve frontend
 app.get('/', (req, res) => {
     res.send(`
         <html>
-        <head>
-            <title>Vulnerable App</title>
-        </head>
         <body>
-            <h2>Vulnerable Test App</h2>
+            <h1>Enterprise Dashboard</h1>
 
-            <h3>XSS Test</h3>
-            <input id="userInput" placeholder="Enter text">
-            <button onclick="display()">Submit</button>
+            <h3>Search User</h3>
+            <form method="GET" action="/search">
+                <input name="q" placeholder="Search username">
+                <button type="submit">Search</button>
+            </form>
+
+            <h3>Feedback</h3>
+            <input id="msg" placeholder="Enter message">
+            <button onclick="send()">Submit</button>
             <div id="output"></div>
 
-            <h3>Login Test</h3>
-            <input id="username" placeholder="Username">
-            <input id="password" placeholder="Password" type="password">
-            <button onclick="login()">Login</button>
-
             <script>
-                // ❌ Vulnerability 1: XSS
-                function display() {
-                    const input = document.getElementById("userInput").value;
-                    document.getElementById("output").innerHTML = input;
-                }
-
-                // ❌ Vulnerability 2: No input validation + insecure request
-                async function login() {
-                    const username = document.getElementById("username").value;
-                    const password = document.getElementById("password").value;
-
-                    const res = await fetch('/login', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ username, password })
-                    });
-
-                    const data = await res.text();
-                    alert(data);
+                // ❌ Stored/Reflected XSS
+                function send() {
+                    const msg = document.getElementById("msg").value;
+                    document.getElementById("output").innerHTML = msg;
                 }
             </script>
         </body>
@@ -60,33 +47,62 @@ app.get('/', (req, res) => {
     `);
 });
 
-// ❌ Vulnerability 3: Weak authentication
+// ❌ Injection-like vulnerability (simulated SQL query)
+app.get('/search', (req, res) => {
+    const q = req.query.q;
+
+    // ❌ No sanitization (simulating SQL injection style logic)
+    const result = users.filter(u => u.username.includes(q));
+
+    res.send(`
+        <h2>Results</h2>
+        ${result.map(u => `<p>${u.username}</p>`).join("")}
+    `);
+});
+
+// ❌ Weak login (real-world mistake)
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
 
+    // ❌ == instead of strict check + no hashing
     const user = users.find(u =>
         u.username == username && u.password == password
     );
 
     if (user) {
-        res.send("Login successful");
+        res.json({
+            message: "Login success",
+            user: user
+        });
     } else {
-        res.send("Invalid credentials");
+        res.status(401).send("Invalid credentials");
     }
 });
 
-// ❌ Vulnerability 4: Exposing sensitive data
-app.get('/data', (req, res) => {
-    res.json({
-        secret: SECRET_KEY
-    });
+// ❌ Sensitive data exposure
+app.get('/config', (req, res) => {
+    res.json(CONFIG);
 });
 
-// ❌ Vulnerability 5: No authorization check
+// ❌ Broken authorization (IDOR-like issue)
+app.get('/user/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+
+    const user = users.find(u => u.id === id);
+
+    // ❌ No auth check
+    if (user) {
+        res.json(user);
+    } else {
+        res.status(404).send("User not found");
+    }
+});
+
+// ❌ Admin panel without auth
 app.get('/admin', (req, res) => {
-    res.send("Welcome to Admin Panel (No Auth!)");
+    res.send("<h1>Admin Panel - No Authentication</h1>");
 });
 
 app.listen(3000, () => {
-    console.log("🚨 Vulnerable app running at http://localhost:3000");
+    console.log("🚨 Test app running at http://localhost:3000");
 });
